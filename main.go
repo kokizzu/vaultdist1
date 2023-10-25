@@ -163,6 +163,9 @@ func readerProcess(u *uint64, errCount *uint64) {
 		secret, err := vaultReader.Logical().Read(vaultPath)
 		if err != nil || secret == nil || secret.Data == nil {
 			atomic.AddUint64(errCount, 1)
+			if err != nil {
+				log.Println("\n", err)
+			}
 		} else {
 			atomic.AddUint64(u, 1)
 		}
@@ -183,6 +186,7 @@ func writerProcess(ok *uint64, errCount *uint64) {
 		})
 		if err != nil {
 			atomic.AddUint64(errCount, 1)
+			log.Println("\n", err)
 		} else {
 			atomic.AddUint64(ok, 1)
 		}
