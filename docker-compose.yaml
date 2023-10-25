@@ -1,0 +1,14 @@
+version: '3'
+services:
+  testvaultserver2:
+    build: ./vault-server/
+    cap_add:
+      - IPC_LOCK
+    environment:
+      READER1_APPROLE_ID: reader1_approle1
+      WRITER1_APPROLE_ID: writer1_approle1
+      # 2 env below should be a random key
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      WRITER1_TOKEN: writer_token1
+    ports:
+      - "8200:8200"
