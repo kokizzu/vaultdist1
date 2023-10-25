@@ -5,7 +5,7 @@ how to use vault to store (write/read/delete) DNSKey
 
 ## Start Dependencies
 
-this also inject a writer token (the application that will fetch reader token, and one that can the secret)
+this also inject a writer token (the application that will fetch reader token, set policies)
 
 ```
 docker-compose up --build
@@ -17,13 +17,13 @@ fetch reader1 and writer1 token and write it to `/tmp/reader1-secret` and `/tmp/
 ./fetch-tokens.sh
 ```
 
-example how to write new dnskey
+example how to write new dnskey (using `writer1_approle1` and `/tmp/writer1-secret`)
 
 ```
 go run main.go write test.com
 ```
 
-example how to read the previously stored dnskey
+example how to read the previously stored dnskey (using `reader1_approle1` and `/tmp/reader1-secret`)
 
 ```
 go run main.go read test.com
