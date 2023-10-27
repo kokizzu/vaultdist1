@@ -19,3 +19,7 @@ path "secret/keys1/*" { # v1
 path "secret/metadata/keys1/*" {
   capabilities = ["list"]
 }
+
+path "mysecret/*" {
+  capabilities = ["create","update","read","patch","delete","list"]
+}

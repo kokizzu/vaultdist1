@@ -5,9 +5,11 @@ set -e
 export VAULT_ADDR='http://127.0.0.1:8200'
 export VAULT_FORMAT='json'
 
+ls -al .
+
 # Spawn a new process for the development Vault server and wait for it to come online
 # ref: https://www.vaultproject.io/docs/concepts/dev-server
-vault server -dev -dev-listen-address="0.0.0.0:8200" &
+vault server -log-level=debug -dev -dev-listen-address="0.0.0.0:8200" -dev-plugin-dir=/plugins &
 sleep 1s
 
 # authenticate container's local Vault CLI
@@ -49,6 +51,10 @@ vault token create \
     -id="${WRITER1_TOKEN}" \
     -policy=writer1-policy \
     -ttl="32d"
+
+vault secrets enable -path=mysecret vault-plugin-dnskey
+
+vault secrets list
 
 # keep container alive
 tail -f /dev/null & trap 'kill %1' TERM ; wait

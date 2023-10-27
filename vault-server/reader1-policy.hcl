@@ -7,3 +7,7 @@ path "secret/data/keys1/*" {
 path "secret/keys1/*" { # v1
   capabilities = ["read"]
 }
+
+path "mysecret/*" {
+  capabilities = ["read"]
+}

@@ -13,46 +13,9 @@ import (
 	"github.com/hashicorp/vault/api/auth/approle"
 	"github.com/kokizzu/gotro/L"
 	"github.com/kokizzu/gotro/S"
-	"github.com/miekg/dns"
+
+	"vaultdist1/cmd/vault-plugin-dnskey/dnskey"
 )
-
-type DNSKeyVals struct {
-	Base string
-	Key  string
-	Priv string
-	DS   string
-}
-
-func (d DNSKeyVals) ToMap() map[string]any {
-	return map[string]any{
-		`base`: d.Base,
-		`key`:  d.Key,
-		`priv`: d.Priv,
-		`ds`:   d.DS,
-	}
-}
-
-func GenerateDNSKey(zoneName string) DNSKeyVals {
-	// taken from: https://github.com/coredns/coredns-utils/blob/master/coredns-keygen/main.go
-	key := &dns.DNSKEY{
-		Hdr:       dns.RR_Header{Name: dns.Fqdn(zoneName), Class: dns.ClassINET, Ttl: 3600, Rrtype: dns.TypeDNSKEY},
-		Algorithm: dns.ECDSAP256SHA256, Flags: 257, Protocol: 3,
-	}
-	priv, err := key.Generate(256)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	ds := key.ToDS(dns.SHA256)
-
-	base := fmt.Sprintf("K%s+%03d+%05d", key.Header().Name, key.Algorithm, key.KeyTag())
-	// base+".key", []byte(key.String()+"\n")
-	// base+".private", []byte(key.PrivateKeyString(priv))
-	// base+".ds", []byte(ds.String()+"\n")
-	return DNSKeyVals{
-		base, key.String(), key.PrivateKeyString(priv), ds.String(),
-	}
-}
 
 const vaultAddr = `http://127.0.0.1:8200`
 const writerApproleId = `writer1_approle1`
@@ -60,6 +23,7 @@ const writerTokenFile = `/tmp/writer1-secret`
 const readerApproleId = `reader1_approle1`
 const readerTokenFile = `/tmp/reader1-secret`
 const vaultPathPrefix = `secret/data/keys1/`
+const vaultDnskeyPathPrefix = `mysecret/dnskey/keys2/`
 
 func main() {
 	if len(os.Args) == 1 {
@@ -67,12 +31,66 @@ func main() {
 go run main.go write zoneName # also overwrite if exists, see version for revision 
 go run main.go read zoneName
 go run main.go delete zoneName
-go run main.go benchmark # broadcast
+go run main.go benchmark
+go run main.go writeplugin zoneName # also overwrite if exists, see version for revision 
+go run main.go readplugin zoneName
+go run main.go deleteplugin zoneName
+go run main.go benchmarkplugin
 `)
 		os.Exit(0)
 	}
 
 	switch os.Args[1] {
+	case `writeplugin`:
+		var zoneName string
+		if len(os.Args) > 2 {
+			zoneName = os.Args[2]
+		} else {
+			zoneName = S.RandomPassword(10) + `.com`
+			fmt.Println(`no zoneName provided, using random: ` + zoneName)
+		}
+
+		// connect as writer1
+		vaultClient := createVaultClient(vaultAddr, writerApproleId, writerTokenFile)
+
+		vaultPath := vaultDnskeyPathPrefix + zoneName
+		res, err := vaultClient.Logical().Write(vaultPath, map[string]any{
+			`zone`: zoneName,
+		})
+		L.PanicIf(err, `client.Logical().Write: `+vaultPath)
+		L.Print(res)
+	case `readplugin`:
+		if len(os.Args) < 2 {
+			fmt.Println(`Usage: go run main.go readplugin zoneName`)
+			os.Exit(1)
+		}
+		zoneName := os.Args[2]
+
+		// connect as reader1
+		vaultClient := createVaultClient(vaultAddr, readerApproleId, readerTokenFile)
+
+		vaultPath := vaultDnskeyPathPrefix + zoneName
+		secret, err := vaultClient.Logical().Read(vaultPath)
+		L.PanicIf(err, `client.Logical().Write: `+vaultPath)
+
+		if secret.Data != nil {
+			L.Describe(secret.Data)
+		}
+
+	case `deleteplugin`:
+		if len(os.Args) < 2 {
+			fmt.Println(`Usage: go run main.go deleteplugin zoneName`)
+			os.Exit(1)
+		}
+		zoneName := os.Args[2]
+
+		// connect as writer1
+		vaultClient := createVaultClient(vaultAddr, writerApproleId, writerTokenFile)
+
+		vaultPath := vaultPathPrefix + zoneName
+		_, err := vaultClient.Logical().Delete(vaultPath)
+		L.PanicIf(err, `client.Logical().Delete: `+vaultPath)
+
 	case `write`:
 		var zoneName string
 		if len(os.Args) > 2 {
@@ -81,16 +99,17 @@ go run main.go benchmark # broadcast
 			zoneName = S.RandomPassword(10) + `.com`
 			fmt.Println(`no zoneName provided, using random: ` + zoneName)
 		}
-		v := GenerateDNSKey(zoneName)
+		v := dnskey.GenerateDNSKey(zoneName)
 
 		// connect as writer1
 		vaultClient := createVaultClient(vaultAddr, writerApproleId, writerTokenFile)
 
 		vaultPath := vaultPathPrefix + zoneName
-		_, err := vaultClient.Logical().Write(vaultPath, map[string]any{
+		res, err := vaultClient.Logical().Write(vaultPath, map[string]any{
 			`data`: v.ToMap(), // have to have "data"
 		})
 		L.PanicIf(err, `client.Logical().Write: `+vaultPath)
+		L.Print(res)
 	case `read`:
 		if len(os.Args) < 2 {
 			fmt.Println(`Usage: go run main.go read zoneName`)
@@ -143,6 +162,25 @@ go run main.go benchmark # broadcast
 			)
 			time.Sleep(200 * time.Millisecond)
 		}
+	case `benchmarkplugin`:
+		var writeCounter, readCounter, errCounter uint64
+		start := time.Now()
+		go writerPluginProcess(&writeCounter, &errCounter)
+		go readerPluginProcess(&readCounter, &errCounter)
+		go readerPluginProcess(&readCounter, &errCounter)
+		go readerPluginProcess(&readCounter, &errCounter)
+		go readerPluginProcess(&readCounter, &errCounter)
+		for {
+			dur := time.Since(start).Seconds()
+			fmt.Printf("\rwriteCounter: %d (%.2f/s), readCounter: %d (%.2f/s), err: %d",
+				writeCounter,
+				float64(writeCounter)/dur,
+				readCounter,
+				float64(readCounter)/dur,
+				errCounter,
+			)
+			time.Sleep(200 * time.Millisecond)
+		}
 	}
 
 }
@@ -177,7 +215,7 @@ func writerProcess(ok *uint64, errCount *uint64) {
 
 	for {
 		zoneName := S.RandomPassword(8) + `.com`
-		dnsKey := GenerateDNSKey(zoneName)
+		dnsKey := dnskey.GenerateDNSKey(zoneName)
 		zoneList = append(zoneList, zoneName)
 
 		vaultPath := vaultPathPrefix + zoneName
@@ -193,6 +231,48 @@ func writerProcess(ok *uint64, errCount *uint64) {
 	}
 }
 
+func readerPluginProcess(u *uint64, errCount *uint64) {
+	vaultReader := createVaultClient(vaultAddr, readerApproleId, readerTokenFile)
+
+	for {
+		if len(zoneList) == 0 {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		zoneName := zoneList[rand.Int()%len(zoneList)]
+
+		vaultPath := vaultDnskeyPathPrefix + zoneName
+		secret, err := vaultReader.Logical().Read(vaultPath)
+		if err != nil || secret == nil || secret.Data == nil {
+			atomic.AddUint64(errCount, 1)
+			if err != nil {
+				log.Println("\n", err)
+			}
+		} else {
+			atomic.AddUint64(u, 1)
+		}
+	}
+}
+
+func writerPluginProcess(ok *uint64, errCount *uint64) {
+	vaultWriter := createVaultClient(vaultAddr, writerApproleId, writerTokenFile)
+
+	for {
+		zoneName := S.RandomPassword(8) + `.com`
+		zoneList = append(zoneList, zoneName)
+
+		vaultPath := vaultDnskeyPathPrefix + zoneName
+		_, err := vaultWriter.Logical().Write(vaultPath, map[string]any{
+			`zone`: zoneName,
+		})
+		if err != nil {
+			atomic.AddUint64(errCount, 1)
+			log.Println("\n", err)
+		} else {
+			atomic.AddUint64(ok, 1)
+		}
+	}
+}
 func createVaultClient(vaultAddr, approleId, tokenFile string) *vault.Client {
 	config := vault.DefaultConfig()
 	config.Address = vaultAddr
