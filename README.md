@@ -52,9 +52,9 @@ writeCounter: 14545 (450.98/s), readCounter: 75257 (2333.41/s), err: 0
 
 NOTE:
 
-- there's [issue with vault](//github.com/hashicorp/vault/issues/23814), that it can only store 5000-ish key before starting to get `read: connection reset by peer`, after a while it can write again, then get same error again 
+- there's [issue with vault](//github.com/hashicorp/vault/issues/23814) (only for default kv engine, plugin version works fine), that it can only store 5000-ish key before starting to get `read: connection reset by peer`, after a while it can write again, then get same error again 
 after 5000-ish, repeat.
-- `deleteplugin` didn't work, not sure what's the issue
+- `deleteplugin` didn't work, not sure what's the issue, probably because the storage always versioned
 
 
 
