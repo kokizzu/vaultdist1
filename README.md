@@ -1,7 +1,7 @@
 
 # Demo how to use vault as store for DNSKey
 
-how to use vault to store (write/read/delete) DNSKey
+how to use vault to store (write/read/delete) DNSKey, with and without plugin
 
 ## Build plugin
 
