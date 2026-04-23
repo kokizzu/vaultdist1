@@ -27,7 +27,7 @@ const vaultDnskeyPathPrefix = `mysecret/dnskey/keys2/`
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Println(`Usage: 
+		fmt.Print(`Usage: 
 go run main.go write zoneName # also overwrite if exists, see version for revision 
 go run main.go read zoneName
 go run main.go delete zoneName
