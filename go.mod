@@ -103,3 +103,17 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+exclude (
+	github.com/docker/docker v24.0.5+incompatible
+	github.com/docker/docker v24.0.6+incompatible
+)
+
+exclude github.com/docker/cli v24.0.6+incompatible
+
+exclude (
+	github.com/opencontainers/runc v1.1.6
+	github.com/opencontainers/runc v1.1.9
+)
+
+exclude github.com/gofiber/fiber/v2 v2.50.0
