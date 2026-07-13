@@ -1,16 +1,20 @@
 
-# Demo how to use vault as store for DNSKey
+# Vault DNSKEY Store Demo
 
-how to use vault to store (write/read/delete) DNSKey, with and without plugin
+Demo showing how to use Vault to store, read, and delete DNSKEY records with
+the built-in KV engine and with a custom Vault plugin.
+
+## Requirements
+
+- Go 1.26.5 or newer
+- Docker Compose for the Vault demo environment
 
 ## Build plugin
 
 this will build the plugin
 
 ```
-# build the plugin
-mkdir vault-server/plugins
-CGO_ENABLED=0 go build -o vault-server/plugins/vault-plugin-dnskey cmd/vault-plugin-dnskey/main.go
+make build-plugin
 ```
 
 ## Start Dependencies
@@ -56,5 +60,33 @@ NOTE:
 after 5000-ish, repeat.
 - `deleteplugin` didn't work, not sure what's the issue, probably because the storage always versioned
 
+## Verification
+
+Run local tests without starting Vault:
+
+```sh
+make test
+```
+
+Run a dependency vulnerability check:
+
+```sh
+make vulncheck
+```
+
+Run any one-off command through the Makefile:
+
+```sh
+make run CMD='go test ./...'
+```
+
+## Maintenance Checklist
+
+- [x] Update the Go runtime directive to Go 1.26.5 for the fixed standard library.
+- [x] Refresh Vault, DNS, and helper dependencies.
+- [x] Add local DNSKEY generation and plugin lifecycle tests.
+- [x] Add Makefile targets for tests, plugin builds, vulnerability checks, and arbitrary commands.
+- [x] Run `make test`.
+- [x] Run `make vulncheck`; no reachable vulnerabilities were found.
 
 
