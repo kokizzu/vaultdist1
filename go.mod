@@ -1,6 +1,6 @@
 module vaultdist1
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3
